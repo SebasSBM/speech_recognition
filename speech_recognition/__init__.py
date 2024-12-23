@@ -187,8 +187,10 @@ class Microphone(AudioSource):
         def __init__(self, pyaudio_stream):
             self.pyaudio_stream = pyaudio_stream
 
-        def read(self, size):
-            return self.pyaudio_stream.read(size, exception_on_overflow=False)
+        def read(self, size, throw_exceptions=False):
+            return self.pyaudio_stream.read(
+                    size,
+                    exception_on_overflow=throw_exceptions)
 
         def close(self):
             try:
@@ -316,7 +318,7 @@ class AudioFile(AudioSource):
 
 
 class Recognizer(AudioSource):
-    def __init__(self):
+    def __init__(self, raise_overflow_exceptions=False):
         """
         Creates a new ``Recognizer`` instance, which represents a collection of speech recognition functionality.
         """
@@ -329,6 +331,8 @@ class Recognizer(AudioSource):
 
         self.phrase_threshold = 0.3  # minimum seconds of speaking audio before we consider the speaking audio a phrase - values below this are ignored (for filtering out clicks and pops)
         self.non_speaking_duration = 0.5  # seconds of non-speaking audio to keep on both sides of the recording
+
+        self.throw_stream_overflow_exceptions = raise_overflow_exceptions
 
     def record(self, source, duration=None, offset=None):
         """
@@ -350,7 +354,9 @@ class Recognizer(AudioSource):
                 if offset_time > offset:
                     offset_reached = True
 
-            buffer = source.stream.read(source.CHUNK)
+            buffer = source.stream.read(
+                    source.CHUNK,
+                    throw_exceptions=self.throw_stream_overflow_exceptions)
             if len(buffer) == 0: break
 
             if offset_reached or not offset:
@@ -382,7 +388,9 @@ class Recognizer(AudioSource):
         while True:
             elapsed_time += seconds_per_buffer
             if elapsed_time > duration: break
-            buffer = source.stream.read(source.CHUNK)
+            buffer = source.stream.read(
+                    source.CHUNK,
+                    throw_exceptions=self.throw_stream_overflow_exceptions)
             energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # energy of the audio signal
 
             # dynamically adjust the energy threshold using asymmetric weighted average
@@ -422,7 +430,9 @@ class Recognizer(AudioSource):
             if timeout and elapsed_time > timeout:
                 raise WaitTimeoutError("listening timed out while waiting for hotword to be said")
 
-            buffer = source.stream.read(source.CHUNK)
+            buffer = source.stream.read(
+                    source.CHUNK,
+                    throw_exceptions=self.throw_stream_overflow_exceptions)
             if len(buffer) == 0: break  # reached end of the stream
             frames.append(buffer)
 
@@ -489,7 +499,9 @@ class Recognizer(AudioSource):
                     if timeout and elapsed_time > timeout:
                         raise WaitTimeoutError("listening timed out while waiting for phrase to start")
 
-                    buffer = source.stream.read(source.CHUNK)
+                    buffer = source.stream.read(
+                        source.CHUNK,
+                        throw_exceptions=self.throw_stream_overflow_exceptions)
                     if len(buffer) == 0: break  # reached end of the stream
                     frames.append(buffer)
                     if len(frames) > non_speaking_buffer_count:  # ensure we only keep the needed amount of non-speaking buffers
@@ -527,7 +539,9 @@ class Recognizer(AudioSource):
                 if phrase_time_limit and elapsed_time - phrase_start_time > phrase_time_limit:
                     break
 
-                buffer = source.stream.read(source.CHUNK)
+                buffer = source.stream.read(
+                        source.CHUNK,
+                        throw_exceptions=self.throw_stream_overflow_exceptions)
                 if len(buffer) == 0: break  # reached end of the stream
                 frames.append(buffer)
                 phrase_count += 1
